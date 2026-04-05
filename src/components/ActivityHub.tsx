@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Transaction, VirtualAccount, ScheduledAllocation } from '../types';
 import { formatCurrency } from '../utils/currency';
 import { getNextExecutionDate } from '../utils/allocations';
+import { AllocationDetailsModal } from './AllocationDetailsModal';
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -12,12 +13,16 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  MousePointer,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 interface ActivityHubProps {
   transactions: Transaction[];
   accounts: VirtualAccount[];
   allocations: ScheduledAllocation[];
+  onDeleteAllocation: (allocationId: string) => void;
+  onDeleteTransaction?: (transactionId: string) => void;
 }
 
 type ActivityTab = 'recent' | 'all' | 'recurring';
@@ -27,6 +32,7 @@ interface ActivityRowProps {
   showAllocation?: boolean;
   accounts: VirtualAccount[];
   allocations: ScheduledAllocation[];
+  onRowClick?: (transaction: Transaction) => void;
 }
 
 const ActivityRow: React.FC<ActivityRowProps> = ({
@@ -34,6 +40,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({
   showAllocation = false,
   accounts,
   allocations,
+  onRowClick,
 }) => {
   const getAccountName = (accountId: string | undefined) => {
     if (!accountId) return 'System';
@@ -52,7 +59,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({
       case 'SCHEDULED':
         return <Calendar size={12} className="text-purple-500" />;
       case 'TRANSFER':
-        return <RefreshCw size={12} className="text-orange-500" />;
+        return <ArrowLeftRight size={12} className="text-orange-500" />;
       case 'BANK_SYNC':
         return <RefreshCw size={12} className="text-green-500" />;
       case 'ALLOCATION_CREATED':
@@ -106,11 +113,14 @@ const ActivityRow: React.FC<ActivityRowProps> = ({
     ? allocations.find((a) => a.id === transaction.relatedAllocationId)
     : null;
 
+  const isClickable = transaction.relatedAllocationId && allocations.find(a => a.id === transaction.relatedAllocationId);
+
   return (
     <div
       className={`p-2.5 rounded-lg border transition-all ${getTypeColor(
         transaction.type
-      )}`}
+      )} ${isClickable ? 'cursor-pointer hover:shadow-md hover:border-blue-300' : ''}`}
+      onClick={() => isClickable && onRowClick && onRowClick(transaction)}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-2 flex-1">
@@ -133,6 +143,9 @@ const ActivityRow: React.FC<ActivityRowProps> = ({
                 {getAccountName(transaction.virtualAccountId)}
               </span>
               {getTypeIcon(transaction.type)}
+              {isClickable && (
+                <MousePointer size={12} className="text-blue-500 ml-1" title="Click for details" />
+              )}
             </div>
             <p className="text-xs text-gray-600 mt-0.5">{transaction.description}</p>
           </div>
@@ -200,6 +213,8 @@ export const ActivityHub: React.FC<ActivityHubProps> = ({
   transactions,
   accounts,
   allocations,
+  onDeleteAllocation,
+  onDeleteTransaction,
 }) => {
   const [activeTab, setActiveTab] = useState<ActivityTab>('recent');
   const [currentPage, setCurrentPage] = useState(1);
@@ -209,6 +224,8 @@ export const ActivityHub: React.FC<ActivityHubProps> = ({
   const [dateTo, setDateTo] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   const itemsPerPage = 20;
 
@@ -249,187 +266,217 @@ export const ActivityHub: React.FC<ActivityHubProps> = ({
     );
   }, [transactions]);
 
+  const handleRowClick = (transaction: Transaction) => {
+    if (transaction.relatedAllocationId) {
+      setSelectedTransaction(transaction);
+      setShowDetailsModal(true);
+    }
+  };
+
+  const selectedAllocation = selectedTransaction?.relatedAllocationId
+    ? allocations.find(a => a.id === selectedTransaction.relatedAllocationId)
+    : null;
+
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-      {/* Header with Tabs */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="text-lg font-semibold text-gray-900">Activity Hub</h2>
-      </div>
+    <>
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        {/* Header with Tabs */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold text-gray-900">Activity Hub</h2>
+        </div>
 
-      {/* Tabs */}
-      <div className="flex border-b bg-gray-50">
-        <button
-          onClick={() => {
-            setActiveTab('recent');
-            setCurrentPage(1);
-          }}
-          className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
-            activeTab === 'recent'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Recent Activity
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('all');
-            setCurrentPage(1);
-          }}
-          className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
-            activeTab === 'all'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          All Activity
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('recurring');
-            setCurrentPage(1);
-          }}
-          className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
-            activeTab === 'recurring'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Recurring
-        </button>
-      </div>
+        {/* Tabs */}
+        <div className="flex border-b bg-gray-50">
+          <button
+            onClick={() => {
+              setActiveTab('recent');
+              setCurrentPage(1);
+            }}
+            className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
+              activeTab === 'recent'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Recent Activity
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('all');
+              setCurrentPage(1);
+            }}
+            className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
+              activeTab === 'all'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            All Activity
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('recurring');
+              setCurrentPage(1);
+            }}
+            className={`flex-1 px-4 py-3 text-base font-medium transition-colors ${
+              activeTab === 'recurring'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Recurring
+          </button>
+        </div>
 
-      {/* Tab Content */}
-      <div className="p-4 space-y-3">
-        {activeTab === 'recent' && (
-          <>
-            {recentTransactions.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Calendar size={48} className="mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium">No activity yet</p>
-              </div>
-            ) : (
-              recentTransactions.map((transaction) => (
-                <ActivityRow
-                  key={transaction.id}
-                  transaction={transaction}
-                  accounts={accounts}
-                  allocations={allocations}
-                />
-              ))
-            )}
-          </>
-          )}
-
-        {activeTab === 'all' && (
-          <>
-            {/* Date Filters */}
-            <div className="bg-gray-50 p-3 rounded-lg flex gap-3 mb-4 flex-wrap">
-              <div>
-                <label className="text-xs font-medium text-gray-600">From:</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => {
-                    setDateFrom(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="mt-1 px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600">To:</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => {
-                    setDateTo(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="mt-1 px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                />
-              </div>
-            </div>
-
-            {paginatedTransactions.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Calendar size={48} className="mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium">No activity in this period</p>
-              </div>
-            ) : (
-              <>
-                {paginatedTransactions.map((transaction) => (
+        {/* Tab Content */}
+        <div className="p-4 space-y-3">
+          {activeTab === 'recent' && (
+            <>
+              {recentTransactions.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Calendar size={48} className="mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-medium">No activity yet</p>
+                </div>
+              ) : (
+                recentTransactions.map((transaction) => (
                   <ActivityRow
                     key={transaction.id}
                     transaction={transaction}
                     accounts={accounts}
                     allocations={allocations}
+                    onRowClick={handleRowClick}
                   />
-                ))}
-              </>
-            )}
-          </>
+                ))
+              )}
+            </>
           )}
 
-        {activeTab === 'recurring' && (
-          <>
-            {recurringActivity.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Calendar size={48} className="mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium">No recurring transfer activity</p>
-                <p className="text-sm mt-2">
-                  Create a recurring transfer to see it here
-                </p>
+          {activeTab === 'all' && (
+            <>
+              {/* Date Filters */}
+              <div className="bg-gray-50 p-3 rounded-lg flex gap-3 mb-4 flex-wrap">
+                <div>
+                  <label className="text-xs font-medium text-gray-600">From:</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="mt-1 px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">To:</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="mt-1 px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                  />
+                </div>
               </div>
-            ) : (
-              recurringActivity.map((transaction) => (
-                <ActivityRow
-                  key={transaction.id}
-                  transaction={transaction}
-                  showAllocation={true}
-                  accounts={accounts}
-                  allocations={allocations}
-                />
-              ))
+
+              {paginatedTransactions.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Calendar size={48} className="mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-medium">No activity in this period</p>
+                </div>
+              ) : (
+                <>
+                  {paginatedTransactions.map((transaction) => (
+                    <ActivityRow
+                      key={transaction.id}
+                      transaction={transaction}
+                      accounts={accounts}
+                      allocations={allocations}
+                      onRowClick={handleRowClick}
+                    />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          {activeTab === 'recurring' && (
+            <>
+              {recurringActivity.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Calendar size={48} className="mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-medium">No recurring transfer activity</p>
+                  <p className="text-sm mt-2">
+                    Create a recurring transfer to see it here
+                  </p>
+                </div>
+              ) : (
+                recurringActivity.map((transaction) => (
+                  <ActivityRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    showAllocation={true}
+                    accounts={accounts}
+                    allocations={allocations}
+                    onRowClick={handleRowClick}
+                  />
+                ))
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Pagination Footer */}
+        {(activeTab === 'all' || activeTab === 'recurring') && (
+          <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              {activeTab === 'all' && (
+                <>
+                  Page {currentPage} of {totalPages || 1} • {allTransactions.length}{' '}
+                  total
+                </>
+              )}
+              {activeTab === 'recurring' && (
+                <>{recurringActivity.length} recurring activities</>
+              )}
+            </div>
+            {activeTab === 'all' && totalPages > 1 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 text-gray-600 hover:bg-white rounded-lg disabled:opacity-50"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 text-gray-600 hover:bg-white rounded-lg disabled:opacity-50"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
-      {/* Pagination Footer */}
-      {(activeTab === 'all' || activeTab === 'recurring') && (
-        <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            {activeTab === 'all' && (
-              <>
-                Page {currentPage} of {totalPages || 1} • {allTransactions.length}{' '}
-                total
-              </>
-            )}
-            {activeTab === 'recurring' && (
-              <>{recurringActivity.length} recurring activities</>
-            )}
-          </div>
-          {activeTab === 'all' && totalPages > 1 && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="p-2 text-gray-600 hover:bg-white rounded-lg disabled:opacity-50"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 text-gray-600 hover:bg-white rounded-lg disabled:opacity-50"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      {/* Allocation Details Modal */}
+      <AllocationDetailsModal
+        isOpen={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedTransaction(null);
+        }}
+        allocation={selectedAllocation}
+        transaction={selectedTransaction}
+        accounts={accounts}
+        onDeleteAllocation={onDeleteAllocation}
+        onDeleteTransaction={onDeleteTransaction}
+      />
+    </>
   );
 };

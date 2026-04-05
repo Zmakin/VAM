@@ -117,6 +117,56 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
+  deleteTransaction: (id) => {
+    set((state) => {
+      const transactionToDelete = state.transactions.find(t => t.id === id);
+      if (!transactionToDelete) return state;
+
+      // For scheduled transfers, we need to find and delete the paired transaction
+      let transactionsToDelete = [id];
+      if (transactionToDelete.type === 'SCHEDULED' && transactionToDelete.relatedAllocationId) {
+        // Find the paired transaction (same allocation, same occurred date, opposite amount)
+        const pairedTransaction = state.transactions.find(t => 
+          t.id !== id &&
+          t.type === 'SCHEDULED' &&
+          t.relatedAllocationId === transactionToDelete.relatedAllocationId &&
+          t.occurredAt === transactionToDelete.occurredAt &&
+          Math.abs(t.amount) === Math.abs(transactionToDelete.amount)
+        );
+        if (pairedTransaction) {
+          transactionsToDelete.push(pairedTransaction.id);
+        }
+      }
+
+      const newTransactions = state.transactions.filter((t) => !transactionsToDelete.includes(t.id));
+      
+      // Reverse the balance changes for all deleted transactions
+      let newAccounts = [...state.accounts];
+      transactionsToDelete.forEach(txId => {
+        const tx = state.transactions.find(t => t.id === txId);
+        if (tx?.virtualAccountId) {
+          newAccounts = newAccounts.map((acc) =>
+            acc.id === tx.virtualAccountId
+              ? { ...acc, balance: acc.balance - tx.amount, updatedAt: new Date().toISOString() }
+              : acc
+          );
+        }
+      });
+      
+      saveToLocalStorage('TRANSACTIONS', newTransactions);
+      saveToLocalStorage('ACCOUNTS', newAccounts);
+      
+      if (hasFileSystemAccess()) {
+        Promise.all([
+          saveToFileSystem('vam_transactions.json', newTransactions),
+          saveToFileSystem('vam_accounts.json', newAccounts),
+        ]).catch(err => console.warn('File system sync failed:', err));
+      }
+      
+      return { transactions: newTransactions, accounts: newAccounts };
+    });
+  },
+
   addAllocation: (allocationData) => {
     const allocation: ScheduledAllocation = {
       ...allocationData,
@@ -131,11 +181,12 @@ export const useStore = create<AppState>((set, get) => ({
       // Log allocation creation activity
       const sourceAccount = state.accounts.find(a => a.id === allocation.sourceAccountId);
       const targetAccount = state.accounts.find(a => a.id === allocation.targetAccountId);
+      const memoSuffix = allocation.memo ? ` - ${allocation.memo}` : '';
       const creationActivity: Transaction = {
         id: generateId(),
         amount: allocation.amount,
         type: 'ALLOCATION_CREATED',
-        description: `Created recurring transfer: ${formatCurrency(allocation.amount)} from ${sourceAccount?.name || 'account'} to ${targetAccount?.name || 'account'}`,
+        description: `Created recurring transfer: ${formatCurrency(allocation.amount)} from ${sourceAccount?.name || 'account'} to ${targetAccount?.name || 'account'}${memoSuffix}`,
         occurredAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         relatedAllocationId: allocation.id,
@@ -179,11 +230,12 @@ export const useStore = create<AppState>((set, get) => ({
       if (allocationToDelete) {
         const sourceAccount = state.accounts.find(a => a.id === allocationToDelete.sourceAccountId);
         const targetAccount = state.accounts.find(a => a.id === allocationToDelete.targetAccountId);
+        const memoSuffix = allocationToDelete.memo ? ` - ${allocationToDelete.memo}` : '';
         const deletionActivity: Transaction = {
           id: generateId(),
           amount: allocationToDelete.amount,
           type: 'ALLOCATION_DELETED',
-          description: `Deleted recurring transfer: ${formatCurrency(allocationToDelete.amount)} from ${sourceAccount?.name || 'account'} to ${targetAccount?.name || 'account'}`,
+          description: `Deleted recurring transfer: ${formatCurrency(allocationToDelete.amount)} from ${sourceAccount?.name || 'account'} to ${targetAccount?.name || 'account'}${memoSuffix}`,
           occurredAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           relatedAllocationId: id,
@@ -227,12 +279,14 @@ export const useStore = create<AppState>((set, get) => ({
         const executionActivities: Transaction[] = [];
 
         allocationsToExecute.forEach(({ allocation, date }) => {
+          const memoSuffix = allocation.memo ? ` - ${allocation.memo}` : '';
+          
           const debitTransaction: Transaction = {
             id: generateId(),
             virtualAccountId: allocation.sourceAccountId,
             amount: -allocation.amount,
             type: 'SCHEDULED',
-            description: `Scheduled transfer to ${currentState.accounts.find(a => a.id === allocation.targetAccountId)?.name || 'account'}`,
+            description: `Scheduled transfer to ${currentState.accounts.find(a => a.id === allocation.targetAccountId)?.name || 'account'}${memoSuffix}`,
             occurredAt: date.toISOString(),
             createdAt: new Date().toISOString(),
             relatedAllocationId: allocation.id,
@@ -243,7 +297,7 @@ export const useStore = create<AppState>((set, get) => ({
             virtualAccountId: allocation.targetAccountId,
             amount: allocation.amount,
             type: 'SCHEDULED',
-            description: `Scheduled transfer from ${currentState.accounts.find(a => a.id === allocation.sourceAccountId)?.name || 'account'}`,
+            description: `Scheduled transfer from ${currentState.accounts.find(a => a.id === allocation.sourceAccountId)?.name || 'account'}${memoSuffix}`,
             occurredAt: date.toISOString(),
             createdAt: new Date().toISOString(),
             relatedAllocationId: allocation.id,
@@ -256,7 +310,7 @@ export const useStore = create<AppState>((set, get) => ({
             id: generateId(),
             amount: allocation.amount,
             type: 'ALLOCATION_EXECUTED',
-            description: `Executed recurring transfer: ${formatCurrency(allocation.amount)} from ${currentState.accounts.find(a => a.id === allocation.sourceAccountId)?.name || 'account'} to ${currentState.accounts.find(a => a.id === allocation.targetAccountId)?.name || 'account'}`,
+            description: `Executed recurring transfer: ${formatCurrency(allocation.amount)} from ${currentState.accounts.find(a => a.id === allocation.sourceAccountId)?.name || 'account'} to ${currentState.accounts.find(a => a.id === allocation.targetAccountId)?.name || 'account'}${memoSuffix}`,
             occurredAt: date.toISOString(),
             createdAt: new Date().toISOString(),
             relatedAllocationId: allocation.id,
@@ -355,17 +409,19 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
-  transferFunds: (fromAccountId, toAccountId, amount, description) => {
+  transferFunds: (fromAccountId, toAccountId, amount, description, memo) => {
     const state = get();
     const fromAccount = state.accounts.find(a => a.id === fromAccountId);
     const toAccount = state.accounts.find(a => a.id === toAccountId);
+
+    const baseDescription = memo ? `${description} - ${memo}` : description;
 
     const debitTransaction: Transaction = {
       id: generateId(),
       virtualAccountId: fromAccountId,
       amount: -amount,
       type: 'TRANSFER',
-      description: `Transfer to ${toAccount?.name || 'account'}: ${description}`,
+      description: `Transfer to ${toAccount?.name || 'account'}: ${baseDescription}`,
       occurredAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
@@ -375,7 +431,7 @@ export const useStore = create<AppState>((set, get) => ({
       virtualAccountId: toAccountId,
       amount: amount,
       type: 'TRANSFER',
-      description: `Transfer from ${fromAccount?.name || 'account'}: ${description}`,
+      description: `Transfer from ${fromAccount?.name || 'account'}: ${baseDescription}`,
       occurredAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };

@@ -18,6 +18,7 @@ interface TransferSetupModalProps {
     dayOfMonth?: number;
     startDate: string;
     endDate: string | null;
+    memo?: string;
   }) => void;
 }
 
@@ -31,6 +32,7 @@ export const TransferSetupModal: React.FC<TransferSetupModalProps> = ({
   const [fromAccountId, setFromAccountId] = useState('');
   const [toAccountId, setToAccountId] = useState('');
   const [amount, setAmount] = useState('');
+  const [memo, setMemo] = useState('');
   const [frequency, setFrequency] = useState<AllocationFrequency>('WEEKLY');
   const [dayOfWeek, setDayOfWeek] = useState(3); // Wednesday
   const [dayOfMonth, setDayOfMonth] = useState(1);
@@ -86,12 +88,14 @@ export const TransferSetupModal: React.FC<TransferSetupModalProps> = ({
       dayOfMonth: finalFrequency === 'MONTHLY_DATE' ? finalDayOfMonth : undefined,
       startDate: startDate + 'T00:00:00Z',
       endDate: endDateType === 'indefinite' ? null : (endDate ? endDate + 'T00:00:00Z' : null),
+      memo: memo.trim() || undefined,
     });
 
     // Reset form
     setFromAccountId('');
     setToAccountId('');
     setAmount('');
+    setMemo('');
     setTransferType('SINGLE');
     setFrequency('WEEKLY');
     setStartDate(new Date().toISOString().split('T')[0]);
@@ -199,6 +203,25 @@ export const TransferSetupModal: React.FC<TransferSetupModalProps> = ({
                 required
               />
             </div>
+          </div>
+
+          {/* Memo */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Memo (Optional)
+            </label>
+            <input
+              type="text"
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder={transferType === 'RECURRING' ? 'e.g., Rent payment (persistent for all transfers)' : 'e.g., One-time expense'}
+            />
+            {transferType === 'RECURRING' && memo && (
+              <p className="mt-1 text-xs text-blue-600">
+                This memo will be included in all scheduled transfers
+              </p>
+            )}
           </div>
 
           {/* Start Date */}
@@ -341,6 +364,11 @@ export const TransferSetupModal: React.FC<TransferSetupModalProps> = ({
                     <strong>{accounts.find(a => a.id === fromAccountId)?.name}</strong> to{' '}
                     <strong>{accounts.find(a => a.id === toAccountId)?.name}</strong>
                   </p>
+                  {memo && (
+                    <p className="mt-1 text-xs italic">
+                      Memo: {memo}
+                    </p>
+                  )}
                   {transferType === 'RECURRING' && (
                     <p className="mt-1 text-xs">
                       Starting {new Date(startDate).toLocaleDateString()} •{' '}

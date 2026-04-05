@@ -5,7 +5,6 @@ import { formatCurrency } from '../utils/currency';
 import { AccountCard } from './AccountCard';
 import { TransactionModal } from './TransactionModal';
 import { TransferSetupModal } from './TransferSetupModal';
-import { AllocationManager } from './AllocationManager';
 import { ReconciliationWarning } from './ReconciliationWarning';
 import { EditAccountModal } from './EditAccountModal';
 import { AddAccountModal } from './AddAccountModal';
@@ -14,11 +13,9 @@ import { ActivityHub } from './ActivityHub';
 import {
   Wallet,
   ArrowLeftRight,
-  Calendar,
   Plus,
   CheckCircle,
   AlertCircle,
-  RefreshCw,
   Settings,
   X,
 } from 'lucide-react';
@@ -36,13 +33,14 @@ export const Dashboard: React.FC = () => {
     deleteAccount,
     executeAllocations,
     addAllocation,
+    deleteAllocation,
+    deleteTransaction,
   } = useStore();
 
   const [selectedAccount, setSelectedAccount] = useState<VirtualAccount | null>(null);
   const [transactionType, setTransactionType] = useState<'add' | 'deduct'>('add');
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showTransferSetupModal, setShowTransferSetupModal] = useState(false);
-  const [showAllocationManager, setShowAllocationManager] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showReconciliationWarning, setShowReconciliationWarning] = useState(false);
@@ -120,7 +118,8 @@ export const Dashboard: React.FC = () => {
         allocation.sourceAccountId,
         allocation.targetAccountId,
         allocation.amount,
-        'One-time transfer'
+        'One-time transfer',
+        allocation.memo
       );
     } else {
       addAllocation({
@@ -144,20 +143,6 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowAllocationManager(true)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2 font-medium"
-              >
-                <Calendar size={18} />
-                Allocations
-              </button>
-              <button
-                onClick={() => executeAllocations()}
-                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
-                title="Check for pending allocations"
-              >
-                <RefreshCw size={18} />
-              </button>
               <button
                 onClick={() => setShowSyncSettings(true)}
                 className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
@@ -249,6 +234,8 @@ export const Dashboard: React.FC = () => {
           transactions={transactions}
           accounts={accounts}
           allocations={allocations}
+          onDeleteAllocation={deleteAllocation}
+          onDeleteTransaction={deleteTransaction}
         />
       </main>
 
@@ -266,11 +253,6 @@ export const Dashboard: React.FC = () => {
         onClose={() => setShowTransferSetupModal(false)}
         accounts={accounts}
         onSubmit={handleTransferSetupSubmit}
-      />
-
-      <AllocationManager
-        isOpen={showAllocationManager}
-        onClose={() => setShowAllocationManager(false)}
       />
 
       <EditAccountModal

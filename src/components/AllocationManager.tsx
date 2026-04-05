@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useStore } from '../store/useStore';
 import { formatCurrency } from '../utils/currency';
 import { getFrequencyText, getEndDateText } from '../utils/allocations';
@@ -60,11 +60,16 @@ export const AllocationManager: React.FC<AllocationManagerProps> = ({ isOpen, on
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <div className="font-semibold text-gray-900">
-                        {getAccountName(allocation.sourceAccountId)} ? {getAccountName(allocation.targetAccountId)}
+                        {getAccountName(allocation.sourceAccountId)} → {getAccountName(allocation.targetAccountId)}
                       </div>
                       <div className="text-sm text-gray-600 mt-1">
-                        {formatCurrency(allocation.amount)} � {getFrequencyText(allocation)}
+                        {formatCurrency(allocation.amount)} • {getFrequencyText(allocation)}
                       </div>
+                      {allocation.memo && (
+                        <div className="text-xs text-gray-500 mt-1 italic">
+                          Memo: {allocation.memo}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => handleToggleActive(allocation.id, allocation.isActive)}

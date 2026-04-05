@@ -43,6 +43,7 @@ export interface ScheduledAllocation {
   endDate: string | null; // ISO string or null for indefinite
   isActive: boolean;
   lastExecutedAt: string | null;
+  memo?: string; // Optional memo for the transfer
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +67,7 @@ export interface AppState {
   deleteAccount: (id: string) => void;
 
   addTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
+  deleteTransaction: (id: string) => void;
 
   addAllocation: (allocation: Omit<ScheduledAllocation, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateAllocation: (id: string, updates: Partial<ScheduledAllocation>) => void;
@@ -76,7 +78,7 @@ export interface AppState {
   updateSettings: (settings: Partial<Settings>) => void;
   completeSetup: () => void;
 
-  transferFunds: (fromAccountId: string, toAccountId: string, amount: number, description: string) => void;
+  transferFunds: (fromAccountId: string, toAccountId: string, amount: number, description: string, memo?: string) => void;
 
   loadFromStorage: () => void;
   saveToStorage: () => void;
