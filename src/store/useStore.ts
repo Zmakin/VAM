@@ -10,6 +10,10 @@ import {
   importData,
   createExportData,
   hasFileSystemAccess,
+  // Google Drive functions
+  saveToGoogleDrive,
+  isSignedInToGoogleDrive,
+  syncAllToGoogleDrive,
 } from '../utils/storage';
 import { shouldRunAllocationOnDate } from '../utils/allocations';
 import { formatCurrency } from '../utils/currency';
@@ -18,9 +22,42 @@ const generateId = (): string => crypto.randomUUID();
 
 const defaultSettings: Settings = {
   isSetupComplete: false,
-  bankName: '',
+  bankName: 'Bank',
   lastSyncAt: null,
   lastAllocationCheckAt: null,
+};
+
+// Helper function to sync data to all available storage methods
+const syncToAllStorage = async (key: keyof typeof import('../utils/storage').STORAGE_KEYS, data: any) => {
+  // Always save to local storage
+  saveToLocalStorage(key, data);
+  
+  // Sync to file system if available
+  if (hasFileSystemAccess()) {
+    try {
+      await saveToFileSystem(`vam_${key.toLowerCase()}.json`, data);
+    } catch (error) {
+      console.warn('File system sync failed:', error);
+    }
+  }
+  
+  // Sync to Google Drive if signed in
+  if (isSignedInToGoogleDrive()) {
+    try {
+      await saveToGoogleDrive(key, data);
+    } catch (error) {
+      console.warn('Google Drive sync failed:', error);
+    }
+  }
+};
+
+const syncAllDataToStorage = async (accounts: any, transactions: any, allocations: any, settings: any) => {
+  await Promise.all([
+    syncToAllStorage('ACCOUNTS' as any, accounts),
+    syncToAllStorage('TRANSACTIONS' as any, transactions),
+    syncToAllStorage('ALLOCATIONS' as any, allocations),
+    syncToAllStorage('SETTINGS' as any, settings),
+  ]);
 };
 
 export const useStore = create<AppState>((set, get) => ({
@@ -38,13 +75,7 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set((state) => {
       const newAccounts = [...state.accounts, account];
-      saveToLocalStorage('ACCOUNTS', newAccounts);
-      // Sync to file system if available
-      if (hasFileSystemAccess()) {
-        saveToFileSystem('vam_accounts.json', newAccounts).catch(err => 
-          console.warn('File system sync failed:', err)
-        );
-      }
+      syncToAllStorage('ACCOUNTS' as any, newAccounts);
       return { accounts: newAccounts };
     });
   },
@@ -54,12 +85,7 @@ export const useStore = create<AppState>((set, get) => ({
       const newAccounts = state.accounts.map((acc) =>
         acc.id === id ? { ...acc, ...updates, updatedAt: new Date().toISOString() } : acc
       );
-      saveToLocalStorage('ACCOUNTS', newAccounts);
-      if (hasFileSystemAccess()) {
-        saveToFileSystem('vam_accounts.json', newAccounts).catch(err => 
-          console.warn('File system sync failed:', err)
-        );
-      }
+      syncToAllStorage('ACCOUNTS' as any, newAccounts);
       return { accounts: newAccounts };
     });
   },
@@ -71,17 +97,8 @@ export const useStore = create<AppState>((set, get) => ({
       const newAllocations = state.allocations.filter(
         (a) => a.sourceAccountId !== id && a.targetAccountId !== id
       );
-      saveToLocalStorage('ACCOUNTS', newAccounts);
-      saveToLocalStorage('TRANSACTIONS', newTransactions);
-      saveToLocalStorage('ALLOCATIONS', newAllocations);
       
-      if (hasFileSystemAccess()) {
-        Promise.all([
-          saveToFileSystem('vam_accounts.json', newAccounts),
-          saveToFileSystem('vam_transactions.json', newTransactions),
-          saveToFileSystem('vam_allocations.json', newAllocations),
-        ]).catch(err => console.warn('File system sync failed:', err));
-      }
+      syncAllDataToStorage(newAccounts, newTransactions, newAllocations, state.settings);
       
       return { accounts: newAccounts, transactions: newTransactions, allocations: newAllocations };
     });
@@ -103,15 +120,8 @@ export const useStore = create<AppState>((set, get) => ({
           : acc
       );
       
-      saveToLocalStorage('TRANSACTIONS', newTransactions);
-      saveToLocalStorage('ACCOUNTS', newAccounts);
-      
-      if (hasFileSystemAccess()) {
-        Promise.all([
-          saveToFileSystem('vam_transactions.json', newTransactions),
-          saveToFileSystem('vam_accounts.json', newAccounts),
-        ]).catch(err => console.warn('File system sync failed:', err));
-      }
+      syncToAllStorage('TRANSACTIONS' as any, newTransactions);
+      syncToAllStorage('ACCOUNTS' as any, newAccounts);
       
       return { transactions: newTransactions, accounts: newAccounts };
     });
@@ -153,15 +163,8 @@ export const useStore = create<AppState>((set, get) => ({
         }
       });
       
-      saveToLocalStorage('TRANSACTIONS', newTransactions);
-      saveToLocalStorage('ACCOUNTS', newAccounts);
-      
-      if (hasFileSystemAccess()) {
-        Promise.all([
-          saveToFileSystem('vam_transactions.json', newTransactions),
-          saveToFileSystem('vam_accounts.json', newAccounts),
-        ]).catch(err => console.warn('File system sync failed:', err));
-      }
+      syncToAllStorage('TRANSACTIONS' as any, newTransactions);
+      syncToAllStorage('ACCOUNTS' as any, newAccounts);
       
       return { transactions: newTransactions, accounts: newAccounts };
     });
@@ -193,14 +196,9 @@ export const useStore = create<AppState>((set, get) => ({
       };
       const newTransactions = [creationActivity, ...state.transactions];
       
-      saveToLocalStorage('ALLOCATIONS', newAllocations);
-      saveToLocalStorage('TRANSACTIONS', newTransactions);
-      if (hasFileSystemAccess()) {
-        Promise.all([
-          saveToFileSystem('vam_allocations.json', newAllocations),
-          saveToFileSystem('vam_transactions.json', newTransactions),
-        ]).catch(err => console.warn('File system sync failed:', err));
-      }
+      syncToAllStorage('ALLOCATIONS' as any, newAllocations);
+      syncToAllStorage('TRANSACTIONS' as any, newTransactions);
+      
       return { allocations: newAllocations, transactions: newTransactions };
     });
   },
@@ -210,12 +208,7 @@ export const useStore = create<AppState>((set, get) => ({
       const newAllocations = state.allocations.map((alloc) =>
         alloc.id === id ? { ...alloc, ...updates, updatedAt: new Date().toISOString() } : alloc
       );
-      saveToLocalStorage('ALLOCATIONS', newAllocations);
-      if (hasFileSystemAccess()) {
-        saveToFileSystem('vam_allocations.json', newAllocations).catch(err => 
-          console.warn('File system sync failed:', err)
-        );
-      }
+      syncToAllStorage('ALLOCATIONS' as any, newAllocations);
       return { allocations: newAllocations };
     });
   },
@@ -241,16 +234,11 @@ export const useStore = create<AppState>((set, get) => ({
           relatedAllocationId: id,
         };
         newTransactions = [deletionActivity, ...state.transactions];
-        saveToLocalStorage('TRANSACTIONS', newTransactions);
+        syncToAllStorage('TRANSACTIONS' as any, newTransactions);
       }
       
-      saveToLocalStorage('ALLOCATIONS', newAllocations);
-      if (hasFileSystemAccess()) {
-        Promise.all([
-          saveToFileSystem('vam_allocations.json', newAllocations),
-          saveToFileSystem('vam_transactions.json', newTransactions),
-        ]).catch(err => console.warn('File system sync failed:', err));
-      }
+      syncToAllStorage('ALLOCATIONS' as any, newAllocations);
+      
       return { allocations: newAllocations, transactions: newTransactions };
     });
   },
@@ -343,17 +331,7 @@ export const useStore = create<AppState>((set, get) => ({
             : a;
         });
 
-        saveToLocalStorage('TRANSACTIONS', newTransactions);
-        saveToLocalStorage('ACCOUNTS', newAccounts);
-        saveToLocalStorage('ALLOCATIONS', newAllocations);
-
-        if (hasFileSystemAccess()) {
-          Promise.all([
-            saveToFileSystem('vam_transactions.json', newTransactions),
-            saveToFileSystem('vam_accounts.json', newAccounts),
-            saveToFileSystem('vam_allocations.json', newAllocations),
-          ]).catch(err => console.warn('File system sync failed:', err));
-        }
+        syncAllDataToStorage(newAccounts, newTransactions, newAllocations, currentState.settings);
 
         return { transactions: newTransactions, accounts: newAccounts, allocations: newAllocations };
       });
@@ -373,12 +351,7 @@ export const useStore = create<AppState>((set, get) => ({
     // Update last check time
     set((state) => {
       const newSettings = { ...state.settings, lastAllocationCheckAt: new Date().toISOString() };
-      saveToLocalStorage('SETTINGS', newSettings);
-      if (hasFileSystemAccess()) {
-        saveToFileSystem('vam_settings.json', newSettings).catch(err => 
-          console.warn('File system sync failed:', err)
-        );
-      }
+      syncToAllStorage('SETTINGS' as any, newSettings);
       return { settings: newSettings };
     });
   },
@@ -386,12 +359,7 @@ export const useStore = create<AppState>((set, get) => ({
   updateSettings: (updates) => {
     set((state) => {
       const newSettings = { ...state.settings, ...updates };
-      saveToLocalStorage('SETTINGS', newSettings);
-      if (hasFileSystemAccess()) {
-        saveToFileSystem('vam_settings.json', newSettings).catch(err => 
-          console.warn('File system sync failed:', err)
-        );
-      }
+      syncToAllStorage('SETTINGS' as any, newSettings);
       return { settings: newSettings };
     });
   },
@@ -399,12 +367,7 @@ export const useStore = create<AppState>((set, get) => ({
   completeSetup: () => {
     set((state) => {
       const newSettings = { ...state.settings, isSetupComplete: true };
-      saveToLocalStorage('SETTINGS', newSettings);
-      if (hasFileSystemAccess()) {
-        saveToFileSystem('vam_settings.json', newSettings).catch(err => 
-          console.warn('File system sync failed:', err)
-        );
-      }
+      syncToAllStorage('SETTINGS' as any, newSettings);
       return { settings: newSettings };
     });
   },
@@ -449,21 +412,24 @@ export const useStore = create<AppState>((set, get) => ({
         return acc;
       });
 
-      saveToLocalStorage('TRANSACTIONS', newTransactions);
-      saveToLocalStorage('ACCOUNTS', newAccounts);
-
-      if (hasFileSystemAccess()) {
-        Promise.all([
-          saveToFileSystem('vam_transactions.json', newTransactions),
-          saveToFileSystem('vam_accounts.json', newAccounts),
-        ]).catch(err => console.warn('File system sync failed:', err));
-      }
+      syncToAllStorage('TRANSACTIONS' as any, newTransactions);
+      syncToAllStorage('ACCOUNTS' as any, newAccounts);
 
       return { transactions: newTransactions, accounts: newAccounts };
     });
   },
 
   loadFromStorage: () => {
+    // Don't overwrite existing data if we already have some loaded (e.g., from Google Drive)
+    const state = get();
+    const hasExistingData = state.accounts.length > 0 || state.transactions.length > 0 || state.allocations.length > 0;
+    
+    if (hasExistingData) {
+      console.log('Skipping localStorage load - data already present in store');
+      return;
+    }
+    
+    console.log('Loading data from localStorage');
     const accounts = loadFromLocalStorage<VirtualAccount[]>('ACCOUNTS', []);
     const transactions = loadFromLocalStorage<Transaction[]>('TRANSACTIONS', []);
     const allocations = loadFromLocalStorage<ScheduledAllocation[]>('ALLOCATIONS', []);
@@ -473,10 +439,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   saveToStorage: () => {
     const state = get();
-    saveToLocalStorage('ACCOUNTS', state.accounts);
-    saveToLocalStorage('TRANSACTIONS', state.transactions);
-    saveToLocalStorage('ALLOCATIONS', state.allocations);
-    saveToLocalStorage('SETTINGS', state.settings);
+    syncAllDataToStorage(state.accounts, state.transactions, state.allocations, state.settings);
   },
 
   exportData: async () => {
@@ -500,21 +463,8 @@ export const useStore = create<AppState>((set, get) => ({
         settings: data.settings,
       });
       
-      // Save to localStorage
-      saveToLocalStorage('ACCOUNTS', data.accounts);
-      saveToLocalStorage('TRANSACTIONS', data.transactions);
-      saveToLocalStorage('ALLOCATIONS', data.allocations);
-      saveToLocalStorage('SETTINGS', data.settings);
-      
-      // Sync to file system if available
-      if (hasFileSystemAccess()) {
-        await Promise.all([
-          saveToFileSystem('vam_accounts.json', data.accounts),
-          saveToFileSystem('vam_transactions.json', data.transactions),
-          saveToFileSystem('vam_allocations.json', data.allocations),
-          saveToFileSystem('vam_settings.json', data.settings),
-        ]);
-      }
+      // Sync to all storage methods
+      await syncAllDataToStorage(data.accounts, data.transactions, data.allocations, data.settings);
       
       return true;
     } catch (error) {
@@ -529,5 +479,57 @@ export const useStore = create<AppState>((set, get) => ({
 
   getAccountById: (id) => {
     return get().accounts.find(acc => acc.id === id);
+  },
+
+  // Add setter methods for Google Drive sync
+  setAccounts: (accounts) => {
+    set({ accounts });
+    syncToAllStorage('ACCOUNTS' as any, accounts);
+  },
+
+  setTransactions: (transactions) => {
+    set({ transactions });
+    syncToAllStorage('TRANSACTIONS' as any, transactions);
+  },
+
+  setAllocations: (allocations) => {
+    set({ allocations });
+    syncToAllStorage('ALLOCATIONS' as any, allocations);
+  },
+
+  setSettings: (settings) => {
+    set({ settings });
+    syncToAllStorage('SETTINGS' as any, settings);
+  },
+
+  // Method to load data from external source (like Google Drive)
+  loadExternalData: (data: { accounts: any; transactions: any; allocations: any; settings: any }) => {
+    // Don't overwrite existing data if the external data appears to be empty/default
+    // This prevents accidentally wiping user data when sync fails
+    const hasExistingData = get().accounts.length > 0 || get().transactions.length > 0 || get().allocations.length > 0;
+    const isExternalDataEmpty = 
+      (!data.accounts || data.accounts.length === 0) &&
+      (!data.transactions || data.transactions.length === 0) &&
+      (!data.allocations || data.allocations.length === 0) &&
+      (!data.settings || Object.keys(data.settings).length === 0 || !data.settings.isSetupComplete);
+    
+    if (hasExistingData && isExternalDataEmpty) {
+      console.log('Skipping external data load - appears to be empty while local data exists');
+      return;
+    }
+    
+    console.log('Applying external data:', {
+      accounts: data.accounts?.length || 0,
+      transactions: data.transactions?.length || 0,
+      allocations: data.allocations?.length || 0,
+      settings: Object.keys(data.settings || {}).length
+    });
+    
+    set({
+      accounts: data.accounts || [],
+      transactions: data.transactions || [],
+      allocations: data.allocations || [],
+      settings: { ...defaultSettings, ...data.settings },
+    });
   },
 }));

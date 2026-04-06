@@ -1,3 +1,5 @@
+import { googleDriveStorage } from './googleDriveStorage';
+
 const STORAGE_KEYS = {
   ACCOUNTS: 'vam_accounts',
   TRANSACTIONS: 'vam_transactions',
@@ -32,6 +34,146 @@ export function clearAllStorage(): void {
   Object.values(STORAGE_KEYS).forEach(key => {
     localStorage.removeItem(key);
   });
+}
+
+// ============================================
+// Google Drive Sync Functions
+// ============================================
+
+export async function saveToGoogleDrive<T>(key: keyof typeof STORAGE_KEYS, data: T): Promise<void> {
+  try {
+    if (!googleDriveStorage.isSignedInToGoogle()) {
+      throw new Error('Not signed in to Google Drive');
+    }
+    
+    const filename = `${STORAGE_KEYS[key]}.json`;
+    await googleDriveStorage.saveData(filename, data);
+  } catch (error) {
+    console.error(`Error saving ${key} to Google Drive:`, error);
+    throw error;
+  }
+}
+
+export async function loadFromGoogleDrive<T>(key: keyof typeof STORAGE_KEYS, defaultValue: T): Promise<T> {
+  try {
+    if (!googleDriveStorage.isSignedInToGoogle()) {
+      return defaultValue;
+    }
+    
+    const filename = `${STORAGE_KEYS[key]}.json`;
+    return await googleDriveStorage.loadData(filename, defaultValue);
+  } catch (error) {
+    console.error(`Error loading ${key} from Google Drive:`, error);
+    return defaultValue;
+  }
+}
+
+export async function loadAllFromGoogleDrive(): Promise<{
+  accounts: any;
+  transactions: any;
+  allocations: any;
+  settings: any;
+} | null> {
+  if (!googleDriveStorage.isSignedInToGoogle()) {
+    return null;
+  }
+
+  try {
+    console.log('Loading all data from Google Drive...');
+    
+    const [accounts, transactions, allocations, settings] = await Promise.all([
+      googleDriveStorage.loadData('vam_accounts.json', []),
+      googleDriveStorage.loadData('vam_transactions.json', []),
+      googleDriveStorage.loadData('vam_allocations.json', []),
+      googleDriveStorage.loadData('vam_settings.json', {}),
+    ]);
+
+    console.log('Loaded data from Google Drive:', {
+      accounts: accounts.length,
+      transactions: transactions.length,
+      allocations: allocations.length,
+      settings: Object.keys(settings).length
+    });
+
+    return { accounts, transactions, allocations, settings };
+  } catch (error) {
+    console.error('Failed to load data from Google Drive:', error);
+    
+    // If the error is due to authentication issues, return null instead of empty data
+    if (error instanceof Error && 
+        (error.message.includes('token expired') || 
+         error.message.includes('Not authenticated') ||
+         error.message.includes('Method doesn\'t allow unregistered callers'))) {
+      console.log('Authentication error detected - not returning empty data');
+      throw error; // Re-throw auth errors so they can be handled upstream
+    }
+    
+    throw error;
+  }
+}
+
+export async function syncAllToGoogleDrive(data: { [key: string]: any }): Promise<void> {
+  if (!googleDriveStorage.isSignedInToGoogle()) {
+    throw new Error('Not signed in to Google Drive');
+  }
+
+  console.log('Starting sync to Google Drive...', {
+    tokenInfo: googleDriveStorage.getTokenInfo(),
+    dataKeys: Object.keys(data)
+  });
+
+  try {
+    const promises = Object.entries(STORAGE_KEYS).map(([key, filename]) => {
+      const keyName = key as keyof typeof STORAGE_KEYS;
+      const fileData = data[keyName];
+      
+      console.log(`Syncing ${keyName}:`, { filename: `${filename}.json`, hasData: !!fileData });
+      
+      return googleDriveStorage.saveData(`${filename}.json`, fileData);
+    });
+
+    await Promise.all(promises);
+    console.log('All data synced successfully to Google Drive');
+  } catch (error) {
+    console.error('Failed to sync all data to Google Drive:', error);
+    throw error;
+  }
+}
+
+export async function isGoogleDriveAvailable(): Promise<boolean> {
+  return await googleDriveStorage.initialize();
+}
+
+export function isGoogleDriveConfigured(): boolean {
+  return googleDriveStorage.isConfigured();
+}
+
+export function getGoogleDriveError(): string | null {
+  return googleDriveStorage.getInitializationError();
+}
+
+export function isSignedInToGoogleDrive(): boolean {
+  return googleDriveStorage.isSignedInToGoogle();
+}
+
+export async function signInToGoogleDrive(): Promise<boolean> {
+  return await googleDriveStorage.signIn();
+}
+
+export async function signOutFromGoogleDrive(): Promise<void> {
+  await googleDriveStorage.signOut();
+}
+
+export function getCurrentGoogleUser(): string | null {
+  return googleDriveStorage.getCurrentUser();
+}
+
+export function getGoogleDriveTokenInfo(): { hasToken: boolean; isSignedIn: boolean; user: string | null } {
+  return googleDriveStorage.getTokenInfo();
+}
+
+export async function refreshGoogleUserInfo(): Promise<void> {
+  await googleDriveStorage.refreshUserInfo();
 }
 
 // ============================================

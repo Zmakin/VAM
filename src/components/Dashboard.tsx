@@ -10,6 +10,7 @@ import { EditAccountModal } from './EditAccountModal';
 import { AddAccountModal } from './AddAccountModal';
 import { SyncSettings } from './SyncSettings';
 import { ActivityHub } from './ActivityHub';
+import { DarkModeToggle } from './DarkModeToggle';
 import {
   Wallet,
   ArrowLeftRight,
@@ -35,6 +36,7 @@ export const Dashboard: React.FC = () => {
     addAllocation,
     deleteAllocation,
     deleteTransaction,
+    updateSettings,
   } = useStore();
 
   const [selectedAccount, setSelectedAccount] = useState<VirtualAccount | null>(null);
@@ -46,6 +48,8 @@ export const Dashboard: React.FC = () => {
   const [showReconciliationWarning, setShowReconciliationWarning] = useState(false);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<VirtualAccount | null>(null);
+  const [showBankNameModal, setShowBankNameModal] = useState(false);
+  const [editedBankName, setEditedBankName] = useState('');
 
   const totalBalance = getTotalBalance();
 
@@ -129,23 +133,40 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleBankNameClick = () => {
+    setEditedBankName(settings.bankName || 'Bank');
+    setShowBankNameModal(true);
+  };
+
+  const handleBankNameSave = () => {
+    updateSettings({ bankName: editedBankName });
+    setShowBankNameModal(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white dark:bg-gray-800 shadow-sm transition-colors">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Wallet className="text-blue-600" size={32} />
+              <button
+                onClick={handleBankNameClick}
+                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title="Edit bank name"
+              >
+                <Wallet size={32} />
+              </button>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Virtual Account Manager</h1>
-                <p className="text-sm text-gray-500">{settings.bankName || 'Bank 2'}</p>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Virtual Account Manager</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{settings.bankName || 'Bank'}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <DarkModeToggle />
               <button
                 onClick={() => setShowSyncSettings(true)}
-                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 title="Sync and backup settings"
               >
                 <Settings size={18} />
@@ -163,10 +184,10 @@ export const Dashboard: React.FC = () => {
         />
 
         {/* Total Balance Card */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white mb-6">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 rounded-xl shadow-lg p-6 text-white mb-6 transition-colors">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm font-medium">Total Pooled Balance</p>
+              <p className="text-blue-100 dark:text-blue-200 text-sm font-medium">Total Pooled Balance</p>
               <p className="text-3xl font-bold mt-1">{formatCurrency(totalBalance)}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -214,13 +235,13 @@ export const Dashboard: React.FC = () => {
             />
           ))}
           {accounts.length === 0 && (
-            <div className="col-span-full text-center py-12 bg-white rounded-xl shadow-md">
-              <Wallet className="mx-auto text-gray-400 mb-4" size={48} />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No accounts yet</h3>
-              <p className="text-gray-500 mb-4">Create your first virtual account to get started</p>
+            <div className="col-span-full text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-md transition-colors">
+              <Wallet className="mx-auto text-gray-400 dark:text-gray-600 mb-4" size={48} />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No accounts yet</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">Create your first virtual account to get started</p>
               <button
                 onClick={() => setShowAddAccountModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium inline-flex items-center gap-2"
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium inline-flex items-center gap-2 transition-colors"
               >
                 <Plus size={18} />
                 Add Account
@@ -270,12 +291,12 @@ export const Dashboard: React.FC = () => {
       {/* Sync Settings Modal */}
       {showSyncSettings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 transition-colors">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Sync & Backup</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sync & Backup</h2>
               <button
                 onClick={() => setShowSyncSettings(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               >
                 <X size={20} />
               </button>
@@ -285,25 +306,70 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Bank Name Edit Modal */}
+      {showBankNameModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-6 transition-colors">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Bank Name</h2>
+              <button
+                onClick={() => setShowBankNameModal(false)}
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Bank Name
+                </label>
+                <input
+                  type="text"
+                  value={editedBankName}
+                  onChange={(e) => setEditedBankName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Marcus by Goldman Sachs"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBankNameModal(false)}
+                  className="flex-1 py-2 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBankNameSave}
+                  className="flex-1 py-2 px-4 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {accountToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Account?</h3>
-            <p className="text-gray-600 mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-6 transition-colors">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete Account?</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Are you sure you want to delete <strong>{accountToDelete.name}</strong>? 
               This will also remove all associated transactions.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setAccountToDelete(null)}
-                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                className="flex-1 py-2 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="flex-1 py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                className="flex-1 py-2 px-4 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 font-medium transition-colors"
               >
                 Delete
               </button>

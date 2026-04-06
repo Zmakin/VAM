@@ -88,4 +88,11 @@ export interface AppState {
   
   getTotalBalance: () => number;
   getAccountById: (id: string) => VirtualAccount | undefined;
+
+  // Google Drive sync methods
+  setAccounts: (accounts: VirtualAccount[]) => void;
+  setTransactions: (transactions: Transaction[]) => void;
+  setAllocations: (allocations: ScheduledAllocation[]) => void;
+  setSettings: (settings: Settings) => void;
+  loadExternalData: (data: { accounts: VirtualAccount[]; transactions: Transaction[]; allocations: ScheduledAllocation[]; settings: Settings }) => void;
 }
