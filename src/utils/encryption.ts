@@ -191,26 +191,38 @@ export async function getEncryptionKey(): Promise<CryptoKey | null> {
 
 /**
  * Unlocks encryption with a password
- * Used when the user needs to re-authenticate
+ * Used when the user needs to re-authenticate or on a new device
  */
 export async function unlockEncryption(password: string): Promise<boolean> {
   const saltData = localStorage.getItem(SALT_KEY);
   if (!saltData) {
-    throw new Error('No encryption configuration found');
+    throw new Error('No encryption configuration found. The salt may be in the cloud files. Try loading data from Google Drive first.');
   }
 
-  const salt = base64ToArrayBuffer(saltData);
-  const key = await deriveKeyFromPassword(password, salt);
-  
-  // Verify the password by trying to import and export the key
-  // (In a real implementation, you might want to store a hash or test decryption)
-  const exportedKey = await exportKey(key);
-  
-  // Store the key for the session
-  localStorage.setItem(STORAGE_KEY, exportedKey);
-  
-  console.log('Encryption unlocked successfully');
-  return true;
+  try {
+    const salt = base64ToArrayBuffer(saltData);
+    const key = await deriveKeyFromPassword(password, salt);
+    
+    // Store the key for the session
+    const exportedKey = await exportKey(key);
+    localStorage.setItem(STORAGE_KEY, exportedKey);
+    
+    console.log('Encryption unlocked successfully with current salt');
+    return true;
+  } catch (error) {
+    console.error('Failed to unlock encryption:', error);
+    throw new Error('Incorrect password or encryption error');
+  }
+}
+
+/**
+ * Updates the local salt (used when loading from cloud with different salt)
+ */
+export function updateSalt(newSalt: string): void {
+  localStorage.setItem(SALT_KEY, newSalt);
+  // Clear the stored key so user must re-enter password
+  localStorage.removeItem(STORAGE_KEY);
+  console.log('Encryption salt updated from cloud');
 }
 
 /**

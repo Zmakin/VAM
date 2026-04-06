@@ -29,6 +29,7 @@ export const GoogleDriveSync: React.FC = () => {
   const [showEncryptionModal, setShowEncryptionModal] = useState(false);
   const [encryptionModalMode, setEncryptionModalMode] = useState<'setup' | 'unlock' | 'change'>('setup');
   const [pendingSignIn, setPendingSignIn] = useState(false);
+  const [pendingLoad, setPendingLoad] = useState(false);
   
   const { accounts, transactions, allocations, settings, loadExternalData } = useStore();
 
@@ -48,18 +49,8 @@ export const GoogleDriveSync: React.FC = () => {
   };
 
   // Add a function to load data from Google Drive
-  const handleLoadFromGoogleDrive = async () => {
+  const handleLoadFromGoogleDrive = async (skipEncryptionCheck = false) => {
     if (!isSignedIn) return false;
-    
-    // Enforce encryption requirement
-    if (!isEncryptionAvailable()) {
-      setMessage({ 
-        type: 'error', 
-        text: 'Encryption must be enabled before loading data from Google Drive.' 
-      });
-      openEncryptionModal('setup');
-      return false;
-    }
     
     try {
       const data = await loadAllFromGoogleDrive();
@@ -83,7 +74,34 @@ export const GoogleDriveSync: React.FC = () => {
       return false;
     } catch (error) {
       console.error('Failed to load from Google Drive:', error);
-      return false;
+      
+      // Check if this is an encryption settings mismatch error
+      if (error instanceof Error && error.message.includes('Encryption settings have changed')) {
+        setMessage({
+          type: 'warning',
+          text: 'Your cloud data uses different encryption settings. Please unlock with your password.'
+        });
+        // Set pending load flag so we retry after unlock
+        setPendingLoad(true);
+        // Open unlock modal to re-derive key with correct salt
+        openEncryptionModal('unlock');
+        return false;
+      }
+      
+      // Check if encryption key is not available
+      if (error instanceof Error && error.message.includes('This file is encrypted')) {
+        setMessage({
+          type: 'warning',
+          text: 'Please unlock encryption to access your cloud data.'
+        });
+        // Set pending load flag so we retry after unlock
+        setPendingLoad(true);
+        // Open unlock modal
+        openEncryptionModal('unlock');
+        return false;
+      }
+      
+      throw error;
     }
   };
 
@@ -296,8 +314,34 @@ export const GoogleDriveSync: React.FC = () => {
       setTimeout(() => {
         handleSignIn();
       }, 1500);
-    } else if (isSignedIn) {
-      // If already signed in, offer to sync encrypted data
+    } 
+    // If this was a pending load (unlock scenario), retry the load
+    else if (pendingLoad) {
+      setPendingLoad(false);
+      setIsLoading(true);
+      setMessage({ 
+        type: 'info', 
+        text: 'Loading your encrypted data from Google Drive...' 
+      });
+      
+      setTimeout(async () => {
+        try {
+          const loaded = await handleLoadFromGoogleDrive();
+          if (loaded) {
+            setMessage({ type: 'success', text: 'Data loaded from Google Drive successfully!' });
+          } else {
+            setMessage({ type: 'info', text: 'No data found in Google Drive.' });
+          }
+        } catch (error) {
+          console.error('Load after unlock failed:', error);
+          setMessage({ type: 'error', text: 'Failed to load data from Google Drive.' });
+        } finally {
+          setIsLoading(false);
+        }
+      }, 500);
+    }
+    // If already signed in, offer to sync encrypted data
+    else if (isSignedIn) {
       setTimeout(() => {
         setMessage({ 
           type: 'info', 

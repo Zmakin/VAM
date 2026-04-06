@@ -74,12 +74,26 @@ export function EncryptionSetupModal({ isOpen, onClose, onSuccess, mode = 'setup
     setError(null);
 
     try {
+      // Check if we have a salt locally
+      const hasSalt = localStorage.getItem('vam_encryption_salt');
+      
+      if (!hasSalt) {
+        // No salt locally - this might be a new device
+        // Try to initialize encryption with this password
+        // The salt will be retrieved from the cloud files when loading
+        setError('Retrieving encryption settings from cloud. Please wait...');
+        
+        // For now, we can't unlock without a salt
+        // The salt should be retrieved when trying to load from Google Drive
+        throw new Error('Please try loading data from Google Drive first to retrieve encryption settings.');
+      }
+      
       await unlockEncryption(password);
       setPassword('');
       onSuccess?.();
       onClose();
     } catch (err) {
-      setError('Incorrect password');
+      setError(err instanceof Error ? err.message : 'Incorrect password');
     } finally {
       setIsProcessing(false);
     }

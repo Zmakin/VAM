@@ -1,4 +1,4 @@
-import { getEncryptionKey, encryptJSON, decryptJSON, isEncryptionAvailable } from './encryption';
+import { getEncryptionKey, encryptJSON, decryptJSON, isEncryptionAvailable, updateSalt } from './encryption';
 
 interface GoogleAuthResponse {
   access_token: string;
@@ -24,6 +24,7 @@ interface StoredAuthState {
 interface EncryptedFileData {
   encrypted: string;
   iv: string;
+  salt: string; // Add salt to the encrypted file
   version: number; // For future compatibility
   timestamp: string;
 }
@@ -463,11 +464,18 @@ class GoogleDriveStorage {
           throw new Error('Encryption is configured but key is not available');
         }
         
+        // Get the salt from localStorage
+        const saltData = localStorage.getItem('vam_encryption_salt');
+        if (!saltData) {
+          throw new Error('Encryption salt not found');
+        }
+        
         // Encrypt the data
         const { encrypted, iv } = await encryptJSON(data, encryptionKey);
         const encryptedData: EncryptedFileData = {
           encrypted,
           iv,
+          salt: saltData, // Include salt in the file
           version: GOOGLE_DRIVE_CONFIG.ENCRYPTION_VERSION,
           timestamp: new Date().toISOString(),
         };
@@ -534,19 +542,43 @@ class GoogleDriveStorage {
         // This is encrypted data
         const encryptedData = parsedContent as EncryptedFileData;
         
+        // If the file has a salt, check if it matches local salt
+        if (encryptedData.salt) {
+          const currentSalt = localStorage.getItem('vam_encryption_salt');
+          
+          if (!currentSalt) {
+            // No local salt - this is a new device, update with cloud salt
+            console.log('No local salt found, using salt from cloud file');
+            updateSalt(encryptedData.salt);
+            throw new Error('Encryption settings retrieved from cloud. Please unlock encryption with your password.');
+          }
+          
+          if (currentSalt !== encryptedData.salt) {
+            // Salt mismatch - cloud data was encrypted with different password
+            console.log('Salt mismatch detected, updating local salt from cloud');
+            updateSalt(encryptedData.salt);
+            throw new Error('Encryption settings have changed. Please unlock encryption again with your password.');
+          }
+        }
+        
         if (!isEncryptionAvailable()) {
-          console.warn(`File ${filename} is encrypted but encryption is not set up locally`);
-          throw new Error('This file is encrypted. Please set up encryption to access it.');
+          console.warn(`File ${filename} is encrypted but encryption key is not available`);
+          throw new Error('This file is encrypted. Please unlock encryption to access it.');
         }
         
         const encryptionKey = await getEncryptionKey();
         if (!encryptionKey) {
-          throw new Error('Encryption key not available');
+          throw new Error('Encryption key not available. Please unlock encryption.');
         }
         
         console.log(`Decrypting ${filename} from Google Drive`);
-        const decrypted = await decryptJSON(encryptedData.encrypted, encryptedData.iv, encryptionKey);
-        return decrypted as T;
+        try {
+          const decrypted = await decryptJSON(encryptedData.encrypted, encryptedData.iv, encryptionKey);
+          return decrypted as T;
+        } catch (decryptError) {
+          console.error(`Decryption failed for ${filename}:`, decryptError);
+          throw new Error(`Failed to decrypt ${filename}. Your encryption password may have changed. Please unlock encryption again.`);
+        }
       } else {
         // Plain JSON data (legacy or encryption not enabled)
         console.log(`Loading ${filename} from Google Drive (unencrypted)`);
@@ -555,12 +587,8 @@ class GoogleDriveStorage {
     } catch (error) {
       console.error(`Failed to load ${filename} from Google Drive:`, error);
       
-      // If decryption fails, it might be due to wrong password or corrupted data
-      if (error instanceof Error && error.message.includes('decrypt')) {
-        throw new Error(`Failed to decrypt ${filename}. Please check your encryption password.`);
-      }
-      
-      return defaultValue;
+      // Re-throw the error so caller can handle it
+      throw error;
     }
   }
 
