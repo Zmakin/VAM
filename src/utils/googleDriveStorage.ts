@@ -1,3 +1,5 @@
+import { getEncryptionKey, encryptJSON, decryptJSON, isEncryptionAvailable } from './encryption';
+
 interface GoogleAuthResponse {
   access_token: string;
   token_type: string;
@@ -18,6 +20,14 @@ interface StoredAuthState {
   currentUser: string | null;
 }
 
+// New interface for encrypted file format
+interface EncryptedFileData {
+  encrypted: string;
+  iv: string;
+  version: number; // For future compatibility
+  timestamp: string;
+}
+
 const GOOGLE_DRIVE_CONFIG = {
   CLIENT_ID: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
   SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
@@ -28,7 +38,8 @@ const GOOGLE_DRIVE_CONFIG = {
     TRANSACTIONS: 'vam_transactions.json',
     ALLOCATIONS: 'vam_allocations.json',
     SETTINGS: 'vam_settings.json',
-  }
+  },
+  ENCRYPTION_VERSION: 1, // Track encryption format version
 };
 
 const AUTH_STORAGE_KEY = 'vam_google_auth_state';
@@ -443,7 +454,31 @@ class GoogleDriveStorage {
     }
 
     try {
-      const content = JSON.stringify(data, null, 2);
+      let content: string;
+      
+      // Check if encryption is available
+      if (isEncryptionAvailable()) {
+        const encryptionKey = await getEncryptionKey();
+        if (!encryptionKey) {
+          throw new Error('Encryption is configured but key is not available');
+        }
+        
+        // Encrypt the data
+        const { encrypted, iv } = await encryptJSON(data, encryptionKey);
+        const encryptedData: EncryptedFileData = {
+          encrypted,
+          iv,
+          version: GOOGLE_DRIVE_CONFIG.ENCRYPTION_VERSION,
+          timestamp: new Date().toISOString(),
+        };
+        
+        content = JSON.stringify(encryptedData, null, 2);
+        console.log(`Encrypting ${filename} before upload to Google Drive`);
+      } else {
+        // No encryption - save as plain JSON
+        content = JSON.stringify(data, null, 2);
+        console.log(`Saving ${filename} to Google Drive (unencrypted)`);
+      }
 
       // Check if file exists
       const existingFile = await this.findFile(filename);
@@ -492,9 +527,39 @@ class GoogleDriveStorage {
       }
 
       const content = await response.text();
-      return JSON.parse(content) as T;
+      const parsedContent = JSON.parse(content);
+      
+      // Check if this is encrypted data
+      if (parsedContent && typeof parsedContent === 'object' && 'encrypted' in parsedContent && 'iv' in parsedContent) {
+        // This is encrypted data
+        const encryptedData = parsedContent as EncryptedFileData;
+        
+        if (!isEncryptionAvailable()) {
+          console.warn(`File ${filename} is encrypted but encryption is not set up locally`);
+          throw new Error('This file is encrypted. Please set up encryption to access it.');
+        }
+        
+        const encryptionKey = await getEncryptionKey();
+        if (!encryptionKey) {
+          throw new Error('Encryption key not available');
+        }
+        
+        console.log(`Decrypting ${filename} from Google Drive`);
+        const decrypted = await decryptJSON(encryptedData.encrypted, encryptedData.iv, encryptionKey);
+        return decrypted as T;
+      } else {
+        // Plain JSON data (legacy or encryption not enabled)
+        console.log(`Loading ${filename} from Google Drive (unencrypted)`);
+        return parsedContent as T;
+      }
     } catch (error) {
       console.error(`Failed to load ${filename} from Google Drive:`, error);
+      
+      // If decryption fails, it might be due to wrong password or corrupted data
+      if (error instanceof Error && error.message.includes('decrypt')) {
+        throw new Error(`Failed to decrypt ${filename}. Please check your encryption password.`);
+      }
+      
       return defaultValue;
     }
   }

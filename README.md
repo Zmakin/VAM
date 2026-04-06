@@ -14,9 +14,24 @@ A browser-based application for managing virtual sub-accounts within a single po
   - Automatic catch-up for missed executions
 - **Dark Mode**: Toggle between light and dark themes for comfortable viewing
 - **Google Drive Sync**: Optional cloud backup and synchronization across devices
+- **Mandatory Encryption**: All Google Drive data is encrypted with AES-256 (required)
 - **Local Storage**: All data stored securely in your browser
 - **Offline Support**: Works without an internet connection
-- **Privacy-First**: Your data stays in your browser or your Google Drive
+- **Privacy-First**: Your data stays in your browser or encrypted in your Google Drive
+
+## Security & Privacy
+
+- **Local-First**: All data is stored in your browser by default
+- **Optional Cloud Sync**: Google Drive sync is completely optional
+- **Mandatory Encryption**: If you use Google Drive sync, encryption is **required** (not optional)
+  - AES-256-GCM encryption (industry standard)
+  - You create an encryption password (separate from Google account)
+  - Only you have the decryption key
+  - Even if Google Drive is compromised, your data remains secure
+  - **WARNING**: Password cannot be recovered if forgotten!
+  - See [ENCRYPTION_GUIDE.md](ENCRYPTION_GUIDE.md) for details
+- **No Third-Party Servers**: Your data is never sent to our servers (we don't have any!)
+- **Google Client ID Security**: The Client ID in the code is safe to be public - it only identifies the app, not your data
 
 ## Getting Started
 
@@ -89,6 +104,8 @@ Output will be in the `dist/` directory.
 
 - [START_HERE.md](START_HERE.md) - Overview and getting started
 - [GOOGLE_DRIVE_SETUP.md](GOOGLE_DRIVE_SETUP.md) - Google Drive sync setup guide
+- [ENCRYPTION_GUIDE.md](ENCRYPTION_GUIDE.md) - **IMPORTANT!** Mandatory encryption for Google Drive
+- [ENCRYPTION_QUICK_REFERENCE.md](ENCRYPTION_QUICK_REFERENCE.md) - Quick encryption reference
 - [DARK_MODE_QUICK_REFERENCE.md](DARK_MODE_QUICK_REFERENCE.md) - Dark mode implementation details
 
 ## License
@@ -99,6 +116,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - All data is stored locally in your browser by default
 - Google Drive sync is optional and requires your explicit consent
+- **If you enable Google Drive sync, encryption is MANDATORY**:
+  - You must set up encryption before signing in to Google Drive
+  - All data is encrypted with AES-256 before upload
+  - Your encryption password cannot be recovered if forgotten
+  - Write down your password in a safe place!
 - Your data is never sent to any third-party servers (except Google Drive if you enable it)
 - The Google Client ID in the code is safe to be public - it only identifies the app, not your data
 - Each user's data stays completely separate in their own Google Drive
+- When using Google Drive, your data is ALWAYS encrypted - Google cannot read it without your password

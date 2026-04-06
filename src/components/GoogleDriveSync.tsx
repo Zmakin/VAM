@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cloud, CloudOff, User, CheckCircle, AlertTriangle, Loader, ExternalLink, Info } from 'lucide-react';
+import { Cloud, CloudOff, User, CheckCircle, AlertTriangle, Loader, ExternalLink, Info, Shield, Lock } from 'lucide-react';
 import { 
   isGoogleDriveAvailable,
   isGoogleDriveConfigured,
@@ -14,6 +14,8 @@ import {
   refreshGoogleUserInfo
 } from '../utils/storage';
 import { useStore } from '../store/useStore';
+import { isEncryptionAvailable } from '../utils/encryption';
+import { EncryptionSetupModal } from './EncryptionSetupModal';
 
 export const GoogleDriveSync: React.FC = () => {
   const [isAvailable, setIsAvailable] = useState(false);
@@ -23,11 +25,16 @@ export const GoogleDriveSync: React.FC = () => {
   const [isConfigured, setIsConfigured] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info' | 'warning'; text: string } | null>(null);
+  const [encryptionEnabled, setEncryptionEnabled] = useState(isEncryptionAvailable());
+  const [showEncryptionModal, setShowEncryptionModal] = useState(false);
+  const [encryptionModalMode, setEncryptionModalMode] = useState<'setup' | 'unlock' | 'change'>('setup');
+  const [pendingSignIn, setPendingSignIn] = useState(false);
   
   const { accounts, transactions, allocations, settings, loadExternalData } = useStore();
 
   useEffect(() => {
     initializeGoogleDrive();
+    setEncryptionEnabled(isEncryptionAvailable());
   }, []);
 
   // Add a function to refresh user info manually
@@ -43,6 +50,16 @@ export const GoogleDriveSync: React.FC = () => {
   // Add a function to load data from Google Drive
   const handleLoadFromGoogleDrive = async () => {
     if (!isSignedIn) return false;
+    
+    // Enforce encryption requirement
+    if (!isEncryptionAvailable()) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Encryption must be enabled before loading data from Google Drive.' 
+      });
+      openEncryptionModal('setup');
+      return false;
+    }
     
     try {
       const data = await loadAllFromGoogleDrive();
@@ -100,8 +117,17 @@ export const GoogleDriveSync: React.FC = () => {
           setCurrentUser(user);
           console.log('GoogleDriveSync component initialized with current user:', user);
           
-          // Note: Don't auto-load data here since it's now handled at the app level
-          // This prevents duplicate loading when the settings modal opens
+          // Check if encryption is set up
+          const encryptionSetup = isEncryptionAvailable();
+          setEncryptionEnabled(encryptionSetup);
+          
+          if (!encryptionSetup) {
+            // User is signed in but encryption not set up - prompt immediately
+            setMessage({ 
+              type: 'warning', 
+              text: 'Encryption is required for Google Drive sync. Please set up encryption to continue.' 
+            });
+          }
         }
       } else if (error) {
         if (error.includes('API not enabled')) {
@@ -131,6 +157,19 @@ export const GoogleDriveSync: React.FC = () => {
   const handleSignIn = async () => {
     setIsLoading(true);
     setMessage(null);
+    
+    // Check if encryption is already set up
+    if (!isEncryptionAvailable()) {
+      setIsLoading(false);
+      setMessage({ 
+        type: 'info', 
+        text: 'You must set up encryption before signing in to Google Drive.' 
+      });
+      setPendingSignIn(true);
+      openEncryptionModal('setup');
+      return;
+    }
+    
     try {
       const success = await signInToGoogleDrive();
       if (success) {
@@ -147,9 +186,9 @@ export const GoogleDriveSync: React.FC = () => {
           console.log('Loading existing data from Google Drive...');
           const loaded = await handleLoadFromGoogleDrive();
           if (loaded) {
-            setMessage({ type: 'success', text: 'Successfully signed in and loaded your data from Google Drive!' });
+            setMessage({ type: 'success', text: 'Successfully signed in and loaded your encrypted data from Google Drive!' });
           } else {
-            setMessage({ type: 'success', text: 'Successfully signed in to Google Drive!' });
+            setMessage({ type: 'success', text: 'Successfully signed in to Google Drive! Your data will be encrypted before syncing.' });
           }
         }, 1000);
         
@@ -180,6 +219,16 @@ export const GoogleDriveSync: React.FC = () => {
   const handleSync = async () => {
     if (!isSignedIn) return;
     
+    // Enforce encryption requirement
+    if (!isEncryptionAvailable()) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Encryption must be enabled before syncing to Google Drive.' 
+      });
+      openEncryptionModal('setup');
+      return;
+    }
+    
     setIsLoading(true);
     setMessage(null);
     
@@ -205,7 +254,7 @@ export const GoogleDriveSync: React.FC = () => {
         ALLOCATIONS: allocations,
         SETTINGS: settings,
       });
-      setMessage({ type: 'success', text: 'Data synced to Google Drive successfully!' });
+      setMessage({ type: 'success', text: 'Data synced to Google Drive successfully (encrypted)!' });
     } catch (error) {
       console.error('Sync failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -226,6 +275,35 @@ export const GoogleDriveSync: React.FC = () => {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openEncryptionModal = (mode: 'setup' | 'unlock' | 'change') => {
+    setEncryptionModalMode(mode);
+    setShowEncryptionModal(true);
+  };
+
+  const handleEncryptionSetupSuccess = async () => {
+    setEncryptionEnabled(true);
+    setMessage({ 
+      type: 'success', 
+      text: 'Encryption enabled! Your data will now be encrypted before syncing to Google Drive.' 
+    });
+    
+    // If this was a pending sign-in, proceed with sign-in now
+    if (pendingSignIn) {
+      setPendingSignIn(false);
+      setTimeout(() => {
+        handleSignIn();
+      }, 1500);
+    } else if (isSignedIn) {
+      // If already signed in, offer to sync encrypted data
+      setTimeout(() => {
+        setMessage({ 
+          type: 'info', 
+          text: 'Click "Sync Now" to upload your encrypted data to Google Drive.' 
+        });
+      }, 3000);
     }
   };
 
@@ -336,7 +414,7 @@ export const GoogleDriveSync: React.FC = () => {
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
           <Cloud className="w-5 h-5" />
-          Google Drive Sync
+          Google Drive Sync (Encrypted)
         </h3>
         
         {message && (
@@ -353,16 +431,79 @@ export const GoogleDriveSync: React.FC = () => {
           </div>
         )}
 
+        {/* Mandatory Encryption Banner */}
+        <div className={`mb-4 p-3 rounded-lg border ${
+          encryptionEnabled 
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+        }`}>
+          <div className="flex items-start gap-3">
+            <Shield className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+              encryptionEnabled 
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-red-600 dark:text-red-400'
+            }`} />
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`font-medium text-sm ${
+                    encryptionEnabled 
+                      ? 'text-green-900 dark:text-green-100' 
+                      : 'text-red-900 dark:text-red-100'
+                  }`}>
+                    {encryptionEnabled ? 'Encryption Active (Required)' : 'Encryption Required'}
+                  </p>
+                  <p className={`text-sm mt-1 ${
+                    encryptionEnabled 
+                      ? 'text-green-800 dark:text-green-300' 
+                      : 'text-red-800 dark:text-red-300'
+                  }`}>
+                    {encryptionEnabled 
+                      ? 'All data is encrypted with AES-256 before storing on Google Drive. Only you can decrypt it with your password.'
+                      : 'Google Drive sync requires encryption to protect your financial data. You must set up encryption before using sync features.'}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-2 flex gap-2">
+                {encryptionEnabled ? (
+                  <button
+                    onClick={() => openEncryptionModal('change')}
+                    className="text-sm px-3 py-1.5 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-600"
+                  >
+                    Change Password
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => openEncryptionModal('setup')}
+                    className="text-sm px-3 py-1.5 bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-600 flex items-center gap-1.5"
+                  >
+                    <Lock className="w-4 h-4" />
+                    Set Up Encryption Now
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {!isSignedIn ? (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">
               Sign in with your Google account to sync your data across all devices. 
-              Your data will be stored securely in your personal Google Drive.
+              Your data will be encrypted before storing in your personal Google Drive.
             </p>
+            <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded">
+              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                <strong>Important:</strong> You must set up encryption before signing in. 
+                {!encryptionEnabled && ' Click "Set Up Encryption Now" above to begin.'}
+              </p>
+            </div>
             <button
               onClick={handleSignIn}
-              disabled={isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
+              disabled={isLoading || !encryptionEnabled}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!encryptionEnabled ? 'Set up encryption first' : ''}
             >
               {isLoading ? <Loader className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
               {isLoading ? 'Signing in...' : 'Sign in with Google'}
@@ -377,7 +518,7 @@ export const GoogleDriveSync: React.FC = () => {
             </div>
             
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              Your data is automatically synced to Google Drive. Access it from any device by signing in with the same Google account.
+              Your data is automatically encrypted and synced to Google Drive. Access it from any device by signing in with the same Google account and encryption password.
             </p>
             
             <div className="flex gap-2">
@@ -415,8 +556,18 @@ export const GoogleDriveSync: React.FC = () => {
                     console.error('Load error:', error);
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
                     
-                    // Check if this is an authentication error
-                    if (errorMessage.includes('token expired') || errorMessage.includes('Not authenticated')) {
+                    // Check if this is an encryption error
+                    if (errorMessage.includes('encrypted')) {
+                      setMessage({ 
+                        type: 'error', 
+                        text: errorMessage 
+                      });
+                      if (!encryptionEnabled) {
+                        setTimeout(() => {
+                          openEncryptionModal('setup');
+                        }, 2000);
+                      }
+                    } else if (errorMessage.includes('token expired') || errorMessage.includes('Not authenticated')) {
                       setMessage({ 
                         type: 'warning', 
                         text: 'Session expired. Please sign in again to continue.' 
@@ -460,6 +611,13 @@ export const GoogleDriveSync: React.FC = () => {
           </div>
         )}
       </div>
+
+      <EncryptionSetupModal
+        isOpen={showEncryptionModal}
+        onClose={() => setShowEncryptionModal(false)}
+        onSuccess={handleEncryptionSetupSuccess}
+        mode={encryptionModalMode}
+      />
     </div>
   );
 };
