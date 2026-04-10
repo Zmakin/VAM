@@ -100,14 +100,6 @@ Output will be in the `dist/` directory.
 - Lucide React (icons)
 - Google Drive API (optional sync)
 
-## Documentation
-
-- [START_HERE.md](START_HERE.md) - Overview and getting started
-- [GOOGLE_DRIVE_SETUP.md](GOOGLE_DRIVE_SETUP.md) - Google Drive sync setup guide
-- [ENCRYPTION_GUIDE.md](ENCRYPTION_GUIDE.md) - **IMPORTANT!** Mandatory encryption for Google Drive
-- [ENCRYPTION_QUICK_REFERENCE.md](ENCRYPTION_QUICK_REFERENCE.md) - Quick encryption reference
-- [DARK_MODE_QUICK_REFERENCE.md](DARK_MODE_QUICK_REFERENCE.md) - Dark mode implementation details
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
