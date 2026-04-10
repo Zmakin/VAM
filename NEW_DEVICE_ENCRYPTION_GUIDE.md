@@ -23,13 +23,6 @@
 
 ## What's Happening Behind the Scenes
 
-### The Problem We Fixed
-
-**Before:**
-- Device 1: Password123 + SecretSalt1 = Key1
-- Device 2: Password123 + ??? = Can't decrypt (no salt!)
-
-**After:**
 - Device 1: Password123 + SecretSalt1 = Key1
   - Uploads: `{encrypted: "data", salt: "SecretSalt1"}`
 - Device 2: Downloads salt ? Password123 + SecretSalt1 = Key1 ?
@@ -149,16 +142,6 @@ When you load data from Google Drive on a new device:
 4. If you have local data, export and start fresh
 
 ## Technical Note
-
-**Why does this work now?**
-
-We fixed the system to store the **salt** (a random value used in encryption) with your cloud data. Now:
-
-- Device 1 syncs: Uploads data + salt
-- Device 2 loads: Downloads data + salt
-- Device 2 uses: Your password + cloud salt = correct key
-- Device 2 decrypts: ? Success!
-
 The salt is not secret (it's designed to be public), so storing it with your encrypted data is secure. Only your password is secret.
 
 ---
