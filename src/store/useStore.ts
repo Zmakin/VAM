@@ -3,9 +3,7 @@ import { AppState, VirtualAccount, Transaction, ScheduledAllocation, Settings } 
 import { 
   loadFromLocalStorage, 
   saveToLocalStorage,
-  saveToFileSystem,
-  loadFromFileSystem,
-  syncToFileSystem,
+  saveToFileSystem, 
   exportData,
   importData,
   createExportData,
@@ -13,10 +11,10 @@ import {
   // Google Drive functions
   saveToGoogleDrive,
   isSignedInToGoogleDrive,
-  syncAllToGoogleDrive,
 } from '../utils/storage';
 import { shouldRunAllocationOnDate } from '../utils/allocations';
 import { formatCurrency } from '../utils/currency';
+import { STORAGE_KEYS } from '../utils/storage';
 
 const generateId = (): string => crypto.randomUUID();
 
@@ -28,7 +26,7 @@ const defaultSettings: Settings = {
 };
 
 // Helper function to sync data to all available storage methods
-const syncToAllStorage = async (key: keyof typeof import('../utils/storage').STORAGE_KEYS, data: any) => {
+const syncToAllStorage = async (key: keyof typeof STORAGE_KEYS, data: any) => {
   // Always save to local storage
   saveToLocalStorage(key, data);
   

@@ -34,7 +34,7 @@ async function deriveKeyFromPassword(password: string, salt: Uint8Array): Promis
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt,
+          salt: salt as Uint8Array<ArrayBuffer>,
       iterations: ENCRYPTION_CONFIG.iterations,
       hash: 'SHA-256',
     },
@@ -65,8 +65,8 @@ function generateIV(): Uint8Array {
 /**
  * Converts a Uint8Array to a base64 string for storage
  */
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
@@ -77,7 +77,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 /**
  * Converts a base64 string back to a Uint8Array
  */
-function base64ToArrayBuffer(base64: string): Uint8Array {
+function base64ToArrayBuffer(base64: string): Uint8Array<ArrayBuffer> {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
@@ -97,7 +97,7 @@ export async function encryptData(data: string, key: CryptoKey): Promise<{ encry
   const encryptedBuffer = await crypto.subtle.encrypt(
     {
       name: ENCRYPTION_CONFIG.algorithm,
-      iv: iv,
+          iv: iv as Uint8Array<ArrayBuffer>,
     },
     key,
     dataBuffer

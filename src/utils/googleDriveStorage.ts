@@ -1,12 +1,5 @@
 import { getEncryptionKey, encryptJSON, decryptJSON, isEncryptionAvailable, updateSalt } from './encryption';
 
-interface GoogleAuthResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  scope: string;
-}
-
 interface GoogleDriveFile {
   id: string;
   name: string;

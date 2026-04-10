@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, AlertCircle, CheckCircle, Shield } from 'lucide-react';
 import { 
-  initializeEncryption, 
-  isEncryptionAvailable, 
+  initializeEncryption,
   unlockEncryption,
   validatePasswordStrength,
   changeEncryptionPassword,
-  disableEncryption
 } from '../utils/encryption';
 
 interface EncryptionSetupModalProps {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { VirtualAccount, AllocationFrequency } from '../types';
 import { dollarsToCents } from '../utils/currency';
-import { getDayName, getNextExecutionDate } from '../utils/allocations';
+import { getDayName } from '../utils/allocations';
 import { X, Calendar } from 'lucide-react';
 
 interface TransferSetupModalProps {
@@ -43,7 +43,7 @@ export const TransferSetupModal: React.FC<TransferSetupModalProps> = ({
 
   if (!isOpen) return null;
 
-  const getFrequencyFromMonthlyPattern = (pattern: string, dow: number): AllocationFrequency => {
+  const getFrequencyFromMonthlyPattern = (pattern: string): AllocationFrequency => {
     const patternMap: { [key: string]: AllocationFrequency } = {
       'FIRST': 'MONTHLY_FIRST_WEEKDAY',
       'SECOND': 'MONTHLY_SECOND_WEEKDAY',
@@ -74,7 +74,7 @@ export const TransferSetupModal: React.FC<TransferSetupModalProps> = ({
         return;
       }
       if (frequency.startsWith('MONTHLY_') && frequency.includes('WEEKDAY')) {
-        finalFrequency = getFrequencyFromMonthlyPattern(monthlyPattern, dayOfWeek);
+        finalFrequency = getFrequencyFromMonthlyPattern(monthlyPattern);
       }
     }
 

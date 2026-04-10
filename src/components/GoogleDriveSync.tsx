@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cloud, CloudOff, User, CheckCircle, AlertTriangle, Loader, ExternalLink, Info, Shield, Lock } from 'lucide-react';
+import { Cloud, CloudOff, CheckCircle, AlertTriangle, Loader, ExternalLink, Info, Shield, Lock } from 'lucide-react';
 import { 
   isGoogleDriveAvailable,
   isGoogleDriveConfigured,
@@ -11,7 +11,6 @@ import {
   syncAllToGoogleDrive,
   loadAllFromGoogleDrive,
   getGoogleDriveTokenInfo,
-  refreshGoogleUserInfo
 } from '../utils/storage';
 import { useStore } from '../store/useStore';
 import { isEncryptionAvailable } from '../utils/encryption';
@@ -38,18 +37,8 @@ export const GoogleDriveSync: React.FC = () => {
     setEncryptionEnabled(isEncryptionAvailable());
   }, []);
 
-  // Add a function to refresh user info manually
-  const refreshUserInfo = async () => {
-    if (isSignedInToGoogleDrive()) {
-      await refreshGoogleUserInfo();
-      const user = getCurrentGoogleUser();
-      setCurrentUser(user);
-      console.log('Manually refreshed user info:', user);
-    }
-  };
-
   // Add a function to load data from Google Drive
-  const handleLoadFromGoogleDrive = async (skipEncryptionCheck = false) => {
+  const handleLoadFromGoogleDrive = async () => {
     if (!isSignedIn) return false;
     
     try {
@@ -191,27 +180,20 @@ export const GoogleDriveSync: React.FC = () => {
     try {
       const success = await signInToGoogleDrive();
       if (success) {
-        setIsSignedIn(true);
-        
-        // Wait a bit for the user info to be retrieved, then update
-        setTimeout(async () => {
-          await refreshGoogleUserInfo();
+          setIsSignedIn(true);
           const user = getCurrentGoogleUser();
           setCurrentUser(user);
-          console.log('Updated currentUser state to:', user);
-          
+
           // Load existing data from Google Drive
           console.log('Loading existing data from Google Drive...');
           const loaded = await handleLoadFromGoogleDrive();
           if (loaded) {
-            setMessage({ type: 'success', text: 'Successfully signed in and loaded your encrypted data from Google Drive!' });
+              setMessage({ type: 'success', text: 'Successfully signed in and loaded your encrypted data from Google Drive!' });
           } else {
-            setMessage({ type: 'success', text: 'Successfully signed in to Google Drive! Your data will be encrypted before syncing.' });
+              setMessage({ type: 'success', text: 'Successfully signed in to Google Drive! Your data will be encrypted before syncing.' });
           }
-        }, 1000);
-        
       } else {
-        setMessage({ type: 'error', text: 'Failed to sign in to Google Drive.' });
+          setMessage({ type: 'error', text: 'Failed to sign in to Google Drive.' });
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Sign-in was cancelled or failed.' });

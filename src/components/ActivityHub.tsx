@@ -144,7 +144,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({
               </span>
               {getTypeIcon(transaction.type)}
               {isClickable && (
-                <MousePointer size={12} className="text-blue-500 dark:text-blue-400 ml-1" title="Click for details" />
+                <MousePointer size={12} className="text-blue-500 dark:text-blue-400 ml-1" />
               )}
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{transaction.description}</p>
@@ -274,7 +274,7 @@ export const ActivityHub: React.FC<ActivityHubProps> = ({
   };
 
   const selectedAllocation = selectedTransaction?.relatedAllocationId
-    ? allocations.find(a => a.id === selectedTransaction.relatedAllocationId)
+      ? allocations.find(a => a.id === selectedTransaction.relatedAllocationId) || null
     : null;
 
   return (

@@ -1,11 +1,11 @@
 import { googleDriveStorage } from './googleDriveStorage';
 
-const STORAGE_KEYS = {
-  ACCOUNTS: 'vam_accounts',
-  TRANSACTIONS: 'vam_transactions',
-  ALLOCATIONS: 'vam_allocations',
-  SETTINGS: 'vam_settings',
-} as const;
+export const STORAGE_KEYS = {
+          ACCOUNTS: 'vam_accounts',
+          TRANSACTIONS: 'vam_transactions',
+          ALLOCATIONS: 'vam_allocations',
+          SETTINGS: 'vam_settings',
+        } as const;
 
 // File System Access API state
 let fileSystemHandle: FileSystemDirectoryHandle | null = null;
